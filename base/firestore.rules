@@ -1,0 +1,40 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{db}/documents {
+
+    // SOLOY 'tongitakavolasoambola@gmail.com' amin'ny email Admin (ilay hidirana ao /admin.html)
+    function isAdmin() {
+      return request.auth != null
+        && request.auth.token.email == 'tongitakavolasoambola@gmail.com'
+        && request.auth.token.firebase.sign_in_provider == 'password';
+    }
+    function activated() {
+      return request.auth != null
+        && exists(/databases/$(db)/documents/activations/$(request.auth.uid))
+        && get(/databases/$(db)/documents/activations/$(request.auth.uid)).data.active == true;
+    }
+
+    // Fangatahana: ny finday ihany no mamorona/manova ny azy; Admin mijery sy mamafa
+    match /requests/{uid} {
+      allow create, update: if request.auth != null && request.auth.uid == uid
+        && request.resource.data.keys().hasOnly(['name', 'phone', 'ref', 'ts'])
+        && request.resource.data.name is string && request.resource.data.name.size() < 80
+        && request.resource.data.phone is string && request.resource.data.phone.size() < 30
+        && request.resource.data.ref is string && request.resource.data.ref.size() < 60;
+      allow read: if request.auth != null && request.auth.uid == uid || isAdmin();
+      allow delete: if isAdmin();
+    }
+
+    // Activation: Admin ihany no manoratra (tanana); ny finday mamaky ny azy
+    match /activations/{uid} {
+      allow read: if request.auth != null && request.auth.uid == uid || isAdmin();
+      allow write: if isAdmin();
+    }
+
+    // Data voaaro (Konkordansa, hevitra, Diksionera, sary): vakiana ihany raha mavitrika ny finday
+    match /data/{id} {
+      allow read: if activated() || isAdmin();
+      allow write: if isAdmin();
+    }
+  }
+}

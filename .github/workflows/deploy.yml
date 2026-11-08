@@ -1,0 +1,45 @@
+name: Deploy Firebase
+
+# Isaky ny `git push` ao amin'ny branch main: manamboatra ny Baiboly (free/) ary mampiakatra ny site amin'ny Firebase Hosting.
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  hosting:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Manamboatra ny data malalaka (free/)
+        run: node tools/build.js
+      - name: Deploy Firebase Hosting
+        uses: FirebaseExtended/action-hosting-deploy@v0
+        with:
+          repoToken: ${{ secrets.GITHUB_TOKEN }}
+          firebaseServiceAccount: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+          projectId: baiboly-20259
+          channelId: live
+
+  # Rules Firestore: tsy maintsy mandeha foana. Raha tsy mahazo alalana ny service account dia aza manahy:
+  # apetraho ao Firebase Console > Firestore > Rules > Publish (ovay indroa ho roa fotsiny izy).
+  rules:
+    runs-on: ubuntu-latest
+    needs: hosting
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Service account
+        env:
+          SA: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+        run: printf '%s' "$SA" > "$RUNNER_TEMP/sa.json"
+      - name: Deploy rules Firestore
+        env:
+          GOOGLE_APPLICATION_CREDENTIALS: ${{ runner.temp }}/sa.json
+        run: npx --yes firebase-tools@13 deploy --only firestore:rules --project baiboly-20259

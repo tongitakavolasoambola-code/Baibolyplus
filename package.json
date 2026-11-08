@@ -1,0 +1,10 @@
+{
+  "name": "baiboly-plus",
+  "private": true,
+  "scripts": {
+    "build": "node tools/build.js",
+    "deploy:hosting": "node tools/build.js && firebase deploy --only hosting",
+    "deploy:rules": "firebase deploy --only firestore:rules",
+    "deploy": "node tools/build.js && firebase deploy --only hosting,firestore:rules"
+  }
+}

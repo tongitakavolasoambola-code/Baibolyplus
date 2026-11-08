@@ -1,0 +1,148 @@
+<!doctype html>
+<html lang="mg"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Admin — Baiboly+</title>
+<style>
+body{font:16px/1.5 system-ui,sans-serif;max-width:760px;margin:0 auto;padding:14px;background:#f4e4d8;color:#2e1a10}
+h1{font-size:1.2rem}h2{font-size:1rem;margin:24px 0 8px;color:#8a4a2a}
+.card{background:#fff8f2;border:1px solid #e6cdbd;border-radius:14px;padding:12px;margin-bottom:10px}
+input{padding:9px;border:1px solid #ccb;border-radius:8px;font:inherit;width:100%;margin:4px 0}
+button{background:#3d2217;color:#fff;border:0;border-radius:10px;padding:9px 14px;font:inherit;cursor:pointer;margin:2px}
+button.r{background:#a33}button.g{background:#2a7a3b}.mut{color:#7a6a58;font-size:.85rem}
+#log{white-space:pre-wrap;font:12px monospace;max-height:220px;overflow:auto;background:#fff;border:1px solid #e6cdbd;padding:8px;border-radius:8px}
+.bar{height:8px;background:#e6cdbd;border-radius:4px;overflow:hidden;margin:6px 0}.bar i{display:block;height:100%;background:#b5603a;width:0}
+code{background:#0001;padding:0 4px;border-radius:4px}
+</style></head><body>
+<h1>Admin — Baiboly+</h1>
+<div id="login" class="card">
+  <input id="em" type="email" placeholder="Email admin" autocomplete="username">
+  <input id="pw" type="password" placeholder="Teny miafina" autocomplete="current-password">
+  <button id="go">Midira</button> <span id="err" class="mut"></span>
+</div>
+
+<div id="panel" hidden>
+  <p class="mut">Mpampiasa: <span id="who"></span> <button id="out" style="background:#888">Hivoaka</button></p>
+
+  <h2>1. Fangatahana activation <span class="mut">(tanana — jereo aloha ny MVola)</span></h2>
+  <div id="reqs"></div>
+
+  <h2>1b. Activation tanana amin'ny kaody finday</h2>
+  <div class="card">
+    <p class="mut">Raha nandefa ny kaody finday (SMS/WhatsApp) ny mpampiasa: apetraho eto ny kaody feno (litera sy isa, ≈28) sy ny anarany, dia « Mampiasa ». Aorian'ny nijerenao ny MVola ihany.</p>
+    <input id="mUid" placeholder="Kaody finday feno (adikao avy amin'ny mpampiasa)">
+    <input id="mName" placeholder="Anarana / laharana (fanamarihana)">
+    <button class="g" id="mGo">Mampiasa</button>
+  </div>
+
+  <h2>2. Mavitrika</h2>
+  <div id="acts"></div>
+
+  <h2>3. Alefa ny data (fanavaozana isanandro)</h2>
+  <div class="card">
+    <p class="mut">Atao <code>node tools/build.js</code> aloha, dia fidio ny tahiry <b>out/data</b> manontolo (Konkordansa, hevitra, Diksionera). Ny fichier lehibe dia tapahina ho tapany (&lt; 1 MB); <code>version</code> no alefa farany. <br>Ny Baiboly (malalaka) dia tsy eto: alefa amin'ny <code>firebase deploy</code> (public/free).</p>
+    <input id="dataDir" type="file" webkitdirectory multiple>
+    <p class="mut">Finday (tsy mahita tahiry): fidio <b>ny fichier .json rehetra</b> ao amin'ny <code>out/phone</code> (tsindrio « safidio rehetra »).</p>
+    <input id="dataFiles" type="file" accept=".json,application/json" multiple>
+    <button id="upData">Alefa ny data</button>
+    <div class="bar"><i id="pb1"></i></div>
+  </div>
+
+  <h2>4. Alefa ny sary diksionera (ahena ho WebP automatique)</h2>
+  <div class="card">
+    <p class="mut">Ahena ho sakany 1200 px, WebP (kalitao 72 %, ahena hatrany raha mihoatra ny 700 KB). Ny anaran'ny sary (ohatra <code>A-001.webp</code>) no apetraka ao amin'ny saha <code>img</code> an'ny teny ao amin'ny dikisionera.</p>
+    <input id="imgs" type="file" accept="image/*" multiple>
+    <button id="upImg">Ahena sy alefa</button>
+    <div class="bar"><i id="pb2"></i></div>
+  </div>
+  <div id="log"></div>
+</div>
+
+<script src="firebase-config.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+<script>
+firebase.initializeApp(window.FIREBASE_CONFIG);
+const auth=firebase.auth(),fs=firebase.firestore();
+const $=s=>document.querySelector(s),esc=s=>String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const log=m=>{const l=$('#log');l.textContent+=m+'\n';l.scrollTop=l.scrollHeight};
+const fmt=t=>t?new Date(t).toLocaleString('fr'):'';
+const CHUNK=250000;                                   // litera isaky ny doc (< 1 MiB na dia accent aza)
+const docId=(name,i)=>name.replace(/\//g,'~')+'~'+i;
+
+$('#go').onclick=()=>auth.signInWithEmailAndPassword($('#em').value,$('#pw').value).then(()=>$('#err').textContent='').catch(e=>$('#err').textContent=e.code);
+$('#out').onclick=()=>auth.signOut();
+let un1,un2;
+auth.onAuthStateChanged(u=>{
+  const ok=u&&!u.isAnonymous;
+  $('#login').hidden=!!ok;$('#panel').hidden=!ok;
+  un1&&un1();un2&&un2();
+  if(!ok)return;
+  $('#who').textContent=u.email;
+  un1=fs.collection('requests').orderBy('ts','desc').onSnapshot(s=>{
+    $('#reqs').innerHTML=s.docs.map(d=>{const r=d.data();return `<div class="card"><b>${esc(r.name)}</b> · ${esc(r.phone)}<br>Réf: <b>${esc(r.ref)}</b> <span class="mut">${fmt(r.ts)} · ${d.id.slice(0,8)}</span><br>
+      <button class="g" data-ok="${d.id}">Efa nojerena — Mampiasa</button> <button class="r" data-no="${d.id}">Fafao</button></div>`}).join('')||'<p class="mut">Tsy misy.</p>';
+  },e=>log('requests: '+e.message));
+  un2=fs.collection('activations').orderBy('at','desc').onSnapshot(s=>{
+    $('#acts').innerHTML=s.docs.map(d=>{const a=d.data();return `<div class="card">${d.id.slice(0,8)} · ${esc(a.name||'')} · ${esc(a.phone||'')} · ${a.active?'✔ mavitrika':'✖ nofoanana'}${a.manual?' · tanana':''} <span class="mut">${fmt(a.at)}</span><br>
+      ${a.active?`<button class="r" data-off="${d.id}">Foano (famindrana finday)</button>`:`<button class="g" data-on="${d.id}">Averina mavitrika</button>`}</div>`}).join('')||'<p class="mut">Tsy misy.</p>';
+  },e=>log('activations: '+e.message));
+});
+document.addEventListener('click',async e=>{
+  const b=e.target.closest('button');if(!b)return;
+  try{
+    if(b.dataset.ok){const id=b.dataset.ok,r=(await fs.doc('requests/'+id).get()).data();
+      await fs.doc('activations/'+id).set({active:true,name:r.name,phone:r.phone,ref:r.ref,manual:true,at:Date.now()});
+      await fs.doc('requests/'+id).delete();log('Activé '+id.slice(0,8));}
+    if(b.dataset.no)await fs.doc('requests/'+b.dataset.no).delete();
+    if(b.dataset.off)await fs.doc('activations/'+b.dataset.off).update({active:false});
+    if(b.dataset.on)await fs.doc('activations/'+b.dataset.on).update({active:true});
+  }catch(err){log('Hadisoana: '+err.message)}
+});
+$('#mGo').onclick=async()=>{
+  const id=$('#mUid').value.trim();if(!/^[A-Za-z0-9]{20,40}$/.test(id))return alert('Kaody feno (litera sy isa, ≈28) no ilaina');
+  if(!confirm("Mampiasa activation ho an'ity finday ity?"))return;
+  try{await fs.doc('activations/'+id).set({active:true,name:$('#mName').value.trim(),manual:true,at:Date.now()},{merge:true});
+    log('Activé (tanana) '+id.slice(0,8));$('#mUid').value='';$('#mName').value='';}catch(err){log('Hadisoana: '+err.message)}
+};
+
+/* ---- Fampiakarana ny data: tapahina ho chunk ao amin'ny collection « data » ---- */
+async function putFile(name,text){
+  const parts=[];for(let i=0;i<text.length;i+=CHUNK)parts.push(text.slice(i,i+CHUNK));if(!parts.length)parts.push('');
+  for(let i=0;i<parts.length;i++)await fs.doc('data/'+docId(name,i)).set({t:parts[i]});
+  return parts.length;
+}
+$('#upData').onclick=async()=>{
+  const fl=[...$('#dataDir').files,...$('#dataFiles').files];if(!fl.length)return alert('Fidio ny tahiry out/data (PC) na ny fichier ao amin\'ny out/phone (finday)');
+  const rel=f=>f.webkitRelativePath?f.webkitRelativePath.split('/').slice(1).join('/'):f.name.replace(/~/g,'/');
+  const vf=fl.find(f=>rel(f)==='version.json');if(!vf)return alert('Tsy hita ny version.json ao anaty tahiry. Fidio ny out/data.');
+  const ver=JSON.parse(await vf.text()),list=fl.filter(f=>rel(f)!=='version.json');
+  try{
+    const prev=(await fs.doc('data/_version').get());const old={};if(prev.exists)prev.data().files.forEach(x=>old[x.k]=x.n);
+    const files=[];let n=0;
+    for(const f of list){const k=rel(f),h=ver.files[k];if(!h){log('! tsy ao amin\'ny version: '+k);continue}
+      const c=await putFile(k,await f.text());files.push({k,h,n:c});
+      for(let i=c;i<(old[k]||0);i++)await fs.doc('data/'+docId(k,i)).delete();     // fafana ny tapany taloha tsy ilaina
+      $('#pb1').style.width=(++n*100/list.length)+'%';log(`↑ ${k} (${c} tapany)`)}
+    for(const k of Object.keys(old))if(!files.find(x=>x.k===k))for(let i=0;i<old[k];i++)await fs.doc('data/'+docId(k,i)).delete();
+    await fs.doc('data/_version').set({updated:ver.updated,files});                  // farany: izany no mahatonga ny finday hahita ny vaovao
+    log('Vita ny data ✔ ('+files.length+' fichier)');
+  }catch(e){log('Hadisoana: '+e.message)}
+};
+
+/* ---- Sary: ahena ho WebP, tehirizina ho base64 ao amin'ny doc « img~<anarana> » ---- */
+async function shrink(file,maxW=1200){
+  const bm=await createImageBitmap(file),k=Math.min(1,maxW/bm.width),c=document.createElement('canvas');
+  c.width=Math.round(bm.width*k);c.height=Math.round(bm.height*k);c.getContext('2d').drawImage(bm,0,0,c.width,c.height);
+  for(let q=.72;q>=.3;q-=.1){const blob=await new Promise(r=>c.toBlob(r,'image/webp',q));if(blob.size<=700000||q<.35)return blob}
+}
+const b64=blob=>new Promise(r=>{const fr=new FileReader();fr.onload=()=>r(fr.result);fr.readAsDataURL(blob)});
+$('#upImg').onclick=async()=>{
+  const fl=[...$('#imgs').files];let n=0,b0=0,b1=0;
+  try{for(const f of fl){const out=await shrink(f),name=f.name.replace(/\.[^.]+$/,'')+'.webp',data=await b64(out);
+    if(data.length>950000){log('! lehibe loatra: '+name);continue}
+    b0+=f.size;b1+=out.size;await fs.doc('data/img~'+name).set({b64:data});
+    $('#pb2').style.width=(++n*100/fl.length)+'%';log(`↑ ${name}  ${(f.size/1024)|0} KB → ${(out.size/1024)|0} KB`)}
+  if(b0)log(`Sary: ${(b0/1e6).toFixed(1)} MB → ${(b1/1e6).toFixed(1)} MB (${100-Math.round(b1*100/b0)}% nihena)`);}
+  catch(e){log('Hadisoana: '+e.message)}
+};
+</script></body></html>

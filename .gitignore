@@ -1,0 +1,19 @@
+# Voaforona amin'ny `node tools/build.js` (tsy alefa ao amin'ny GitHub)
+out/
+free/
+node_modules/
+.firebase/
+*.log
+# ZAVA-MISAFIDY: aza atao ao amin'ny GitHub mihitsy ny fichier service account
+*service-account*.json
+*-firebase-adminsdk-*.json
+.DS_Store
+*.keystore
+*.jks
+*.apk
+*.aab
+# Angona mila activation: tehirizo ao amin'ny findainao ihany (aza alefa ao amin'ny GitHub raha public)
+src/lohahevitra.js
+src/dikisionera-data.js
+push.sh
+push.bat
