@@ -105,7 +105,7 @@ label.f{display:block;margin:8px 0 0;font-size:.85rem;color:#7a6a58}
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
 <script>
 firebase.initializeApp(window.FIREBASE_CONFIG);
-const auth=firebase.auth(),fs=firebase.firestore();
+const auth=firebase.auth(),fs=firebase.firestore();try{fs.settings({experimentalAutoDetectLongPolling:true,merge:true})}catch{}
 const $=s=>document.querySelector(s),esc=s=>String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 const log=m=>{const l=$('#log');l.textContent+=m+'\n';l.scrollTop=l.scrollHeight};
 const fmt=t=>t?new Date(t).toLocaleString('fr'):'';
@@ -169,6 +169,7 @@ $('#upData').onclick=async()=>{
     for(const k of Object.keys(old))if(!files.find(x=>x.k===k))for(let i=0;i<old[k];i++)await fs.doc('data/'+docId(k,i)).delete();
     await fs.doc('data/_version').set({updated:ver.updated,files});                  // farany: izany no mahatonga ny finday hahita ny vaovao
     log('Vita ny data ✔ ('+files.length+' fichier)');
+    await addNote('Fanavaozana angona: Konkordansa / Diksionera');
   }catch(e){log('Hadisoana: '+e.message)}
 };
 
@@ -185,6 +186,7 @@ $('#upImg').onclick=async()=>{
     if(data.length>950000){log('! lehibe loatra: '+name);continue}
     b0+=f.size;b1+=out.size;await fs.doc('data/img~'+name).set({b64:data});
     $('#pb2').style.width=(++n*100/fl.length)+'%';log(`↑ ${name}  ${(f.size/1024)|0} KB → ${(out.size/1024)|0} KB`)}
+  if(n)await addNote('Sary vaovao ao amin\'ny Diksionera ('+n+')');
   if(b0)log(`Sary: ${(b0/1e6).toFixed(1)} MB → ${(b1/1e6).toFixed(1)} MB (${100-Math.round(b1*100/b0)}% nihena)`);}
   catch(e){log('Hadisoana: '+e.message)}
 };
@@ -205,6 +207,7 @@ async function saveFiles(map,drop=[]){      // {anarana: objet}; version no sora
   }
   await fs.doc('data/_version').set({updated:new Date().toISOString(),files:ver.files});
 }
+async function addNote(t){try{const r=fs.doc('data/_notes'),d=await r.get(),items=d.exists?d.data().items||[]:[];items.unshift({ts:Date.now(),t});await r.set({items:items.slice(0,40)})}catch(e){log('notes: '+e.message)}}   // fampandrenesana ho an'ny finday
 const download=(name,obj)=>{const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([JSON.stringify(obj,null,1)],{type:'application/json'}));a.download=name;a.click()};
 const bookOpts=BOOKS.map((b,i)=>`<option value="${i+1}">${esc(b)}</option>`).join('');
 $('#dBk').innerHTML=bookOpts;
@@ -256,7 +259,7 @@ $('#dSave').onclick=async()=>{
     else{let k=arr.findIndex(x=>x.w.localeCompare(w,'mg')>0);if(k<0)k=arr.length;arr.splice(k,0,e)}
     const map={};touched.forEach(l=>map[`dico/${l}.json`]=DI.files[l]);
     map['dico/index.json']={letters:DI.letters,total:dAll().length};
-    await saveFiles(map);log('✔ Tahirizina: '+w);
+    await saveFiles(map);await addNote((old?'Teny novaina: ':'Teny vaovao ao amin\'ny Diksionera: ')+w);log('✔ Tahirizina: '+w);
     const pos=DI.files[L].indexOf(e);dFill({L,i:pos});$('#dInfo').textContent=dAll().length+' teny';dSearch();
   }catch(err){log('Hadisoana: '+err.message);alert(err.message)}
 };
@@ -267,7 +270,7 @@ $('#dDel').onclick=async()=>{
     map['dico/index.json']={letters:DI.letters,total:dAll().length};
     await saveFiles(map,drop);
     if(e.img){try{await fs.doc('data/img~'+e.img).delete()}catch{}}
-    log('✔ Voafafa: '+e.w);dFill(null);$('#dInfo').textContent=dAll().length+' teny';dSearch();
+    await addNote('Teny nafoana: '+e.w);log('✔ Voafafa: '+e.w);dFill(null);$('#dInfo').textContent=dAll().length+' teny';dSearch();
   }catch(err){log('Hadisoana: '+err.message);alert(err.message)}
 };
 $('#dBak').onclick=()=>DI&&download('dikisionera-backup.json',dAll().map(x=>x.e));
@@ -299,13 +302,13 @@ $('#lSave').onclick=async()=>{
   const mg=$('#lMg').value.trim();if(!mg)return alert('Soraty ny lohateny Malagasy');
   const refs=[...document.querySelectorAll('#lRefs .row')].map(r=>{const [s,c,v]=r.querySelectorAll('select,input');return [+s.value,parseInt(c.value),parseInt(v.value)]}).filter(r=>r[0]>=1&&r[0]<=66&&r[1]>0&&r[2]>0);
   const e=[mg,$('#lFr').value.trim(),$('#lEn').value.trim(),refs];
-  try{if(lCur>=0)LH[lCur]=e;else{LH.push(e);lCur=LH.length-1}
-    await saveFiles({'lohahevitra.json':LH});log(`✔ Tahirizina: ${mg} (${refs.length} andininy)`);$('#lInfo').textContent=LH.length+' lohahevitra';lFill(lCur);lSearch();
+  const isNew=lCur<0;try{if(lCur>=0)LH[lCur]=e;else{LH.push(e);lCur=LH.length-1}
+    await saveFiles({'lohahevitra.json':LH});await addNote((isNew?'Lohahevitra vaovao: ':'Lohahevitra novaina: ')+mg);log(`✔ Tahirizina: ${mg} (${refs.length} andininy)`);$('#lInfo').textContent=LH.length+' lohahevitra';lFill(lCur);lSearch();
   }catch(err){log('Hadisoana: '+err.message);alert(err.message)}
 };
 $('#lDel').onclick=async()=>{
   if(lCur<0)return alert('Fidio aloha ny lohahevitra');if(!confirm('Hafafana ve ny « '+LH[lCur][0]+' » ?'))return;
-  try{const [x]=LH.splice(lCur,1);await saveFiles({'lohahevitra.json':LH});log('✔ Voafafa: '+x[0]);$('#lInfo').textContent=LH.length+' lohahevitra';lFill(-1);lSearch()}
+  try{const [x]=LH.splice(lCur,1);await saveFiles({'lohahevitra.json':LH});await addNote('Lohahevitra nafoana: '+x[0]);log('✔ Voafafa: '+x[0]);$('#lInfo').textContent=LH.length+' lohahevitra';lFill(-1);lSearch()}
   catch(err){log('Hadisoana: '+err.message);alert(err.message)}
 };
 $('#lBak').onclick=()=>LH&&download('lohahevitra-backup.json',LH);

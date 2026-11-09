@@ -16,7 +16,7 @@ const kvGet = (k) => idb.then((d) => new Promise((res) => { const q = d.transact
 const kvSet = (k, v) => idb.then((d) => new Promise((res, rej) => { const t = d.transaction('kv', 'readwrite'); t.objectStore('kv').put(v, k); t.oncomplete = res; t.onerror = () => rej(t.error); }));
 
 /* ================= State ================= */
-const S = { tab: 'home', stack: [], konk: null, bible: null, topics: null, dico: [], dicoIdx: null, act: null, concord: null };
+const S = { tab: 'home', stack: [], notes: [], konk: null, bible: null, topics: null, dico: [], dicoIdx: null, act: null, concord: null };
 const toast = (m, ms = 2500) => { const t = $('#toast'); t.textContent = m; t.hidden = false; clearTimeout(toast.h); toast.h = setTimeout(() => (t.hidden = true), ms); };
 // canon (1-66) -> index ao amin'ny bible.json (misy Apokrifa eo anelanelany)
 const canonIdx = (n) => (n <= 39 ? n - 1 : n + 9);
@@ -106,7 +106,10 @@ function fb() {
     const a = firebase.auth();
     await new Promise((r) => { let done = false, un; un = a.onAuthStateChanged(() => { if (!done) { done = true; un && un(); r(); } }); });  // andraso ny fidirana voatahiry
     if (!a.currentUser) await a.signInAnonymously();
-    return { db: firebase.firestore(), uid: a.currentUser.uid };    // uid = ID tokana an'ny finday = fototry ny activation
+    const db = firebase.firestore();
+    // réseaux mobiles / proxy: WebChannel mety voasakana -> "Failed to get document because the client is offline"; long polling no vahaolana
+    try { db.settings({ experimentalAutoDetectLongPolling: true, merge: true }); } catch {}
+    return { db, uid: a.currentUser.uid };    // uid = ID tokana an'ny finday = fototry ny activation
   })().catch((e) => { fbReady = null; throw e; }));
 }
 // Data voaaro ao amin'ny Firestore: collection « data », fichier iray = doc iray na maromaro (chunk)
@@ -140,8 +143,46 @@ async function loadLocal() {
 
 /* ================= Sync ================= */
 let syncing = false;
+
+/* ================= Fampandrenesana (vaovao avy amin'ny Admin) ================= */
+const fmtD = (t) => new Date(t).toLocaleString('fr', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
+let lastNotify = 0;
+function notify(items) {
+  if (!items.length) return;
+  lastNotify = Date.now();
+  const txt = items.length === 1 ? items[0].t : items[0].t + ` (+${items.length - 1} hafa)`;
+  toast('🔔 ' + txt, 7000);
+  if (S.tab === 'home' && !S.stack.length) route();
+  try {
+    if (document.hidden && 'Notification' in window && Notification.permission === 'granted' && navigator.serviceWorker)
+      navigator.serviceWorker.getRegistration().then((r) => r && r.showNotification('Baiboly+', { body: txt, icon: 'icon-192.png', tag: 'baiboly-news' }));
+  } catch {}
+}
+async function checkNotes(c) {
+  const d = await c.db.doc('data/_notes').get(); if (!d.exists) return;
+  const items = (d.data().items || []).slice().sort((a, b) => b.ts - a.ts), seen = await kvGet('notesSeen');
+  S.notes = items.slice(0, 15); await kvSet('notes', S.notes);
+  if (seen == null) { await kvSet('notesSeen', items[0] ? items[0].ts : Date.now()); return; }   // voalohany: tsy atao fampandrenesana ny taloha
+  const fresh = items.filter((x) => x.ts > seen);
+  if (fresh.length) { await kvSet('notesSeen', fresh[0].ts); notify(fresh); }
+}
+let liveOn = false, dataLive = false, again = false, kickT;
+const kick = () => { clearTimeout(kickT); kickT = setTimeout(() => sync(), 700); };
+function startLive(c) {          // mihaino ny Firestore: rehefa miova ny Admin dia mahazo ny vaovao avy hatrany ny finday mbola misokatra
+  if (!liveOn) {
+    liveOn = true; let first = true;
+    c.db.doc('activations/' + c.uid).onSnapshot(() => { if (first) { first = false; return; } kick(); }, () => { liveOn = false; });
+  }
+  if (S.act && S.act.active && !dataLive) {
+    dataLive = true; let f1 = true, f2 = true;
+    const err = () => { dataLive = false; };
+    c.db.doc('data/_version').onSnapshot(() => { if (f1) { f1 = false; return; } kick(); }, err);
+    c.db.doc('data/_notes').onSnapshot(() => { if (f2) { f2 = false; return; } kick(); }, err);
+  }
+}
+addEventListener('visibilitychange', () => { if (!document.hidden) sync(); });
 async function sync(manual = false) {
-  if (syncing) return;
+  if (syncing) { again = true; return; }
   if (!navigator.onLine) { if (manual) toast('Tsy misy internet'); return; }
   syncing = true; $('#syncBtn').innerHTML = '<span class="spin">' + IC.sync + '</span>';
   let changed = 0, updated = null;
@@ -171,16 +212,19 @@ async function sync(manual = false) {
       await kvSet('act', S.act);
       if (S.act.active) await syncSet(fsReader(c), 'version.json', 'ver');
       else if (manual) toast('Mbola tsy mavitrika ny activation (Diksionera / Konkordansa)');
+      if (S.act.active && !was) notify([{ t: 'Mavitrika ny activation: azonao ampiasaina ny Konkordansa sy ny Diksionera.' }]);
+      if (S.act.active) await checkNotes(c).catch((e) => console.warn('notes', e));
+      try { startLive(c); } catch (e) { console.warn('live', e); }
       if (changed || was !== S.act.active) await loadLocal();
     } catch (e) { console.warn('firebase', e); if (manual) toast('Tsy tafiditra ny activation (' + (e.message || e.code) + ')'); }
-    if (changed) toast(`Voavao: ${changed} fichier`); else if (manual && S.act?.active) toast('Efa vaovao daholo');
+    if (changed && Date.now() - lastNotify > 4000) toast(`Voavao: ${changed} fichier`); else if (manual && S.act?.active) toast('Efa vaovao daholo');
     $('#banner').hidden = true;
     // aza averina soratana ny pejy raha mbola manoratra ao amin'ny saha ny olona (activation)
     const ae = document.activeElement;
     if (!(ae && /^(INPUT|TEXTAREA)$/.test(ae.tagName) && view.contains(ae))) route();
   } catch (e) {
     console.warn(e); if (manual) toast('Tsy vita ny fanavaozana (' + (e.message || e.code) + ')');
-  } finally { syncing = false; $('#syncBtn').innerHTML = IC.sync; updateBanner(); }
+  } finally { syncing = false; $('#syncBtn').innerHTML = IC.sync; updateBanner(); if (again) { again = false; kick(); } }
 }
 $('#syncBtn').onclick = () => sync(true);
 addEventListener('online', () => sync());
@@ -262,9 +306,11 @@ function vHome() {
       : `<div class="hero"><small>Baiboly DIEM</small><p>Ampifandraiso ny internet indray mandeha hisintonana ny Baiboly (malalaka), dia azo vakiana offline.</p><button class="btn" data-go="about">Hanavao →</button></div>`}
     <h2>Sokajy</h2>
     <div class="cats">${[['bible', 'Baiboly', 'book'], ['dico', 'Diksionera', 'dict'], ['konk', 'Konkordansa', 'search']].map(([t, l, i]) => `<button class="cat" data-t="${t}"><i>${IC[i]}</i>${l}</button>`).join('')}</div>
+    ${S.notes.length ? `<h2>Vaovao</h2><div class="card">${S.notes.slice(0, 5).map((n) => `<p style="margin:.3rem 0"><b>${esc(n.t)}</b> <span class="mut">${fmtD(n.ts)}</span></p>`).join('')}${'Notification' in window && Notification.permission === 'default' ? '<button class="btn alt" id="nOn">Alefaso ny fampandrenesana</button>' : ''}</div>` : ''}
     ${picks.length ? `<h2>Konkordansa: hevitra ho an'ianao</h2><div class="hscroll">${picks.map(([x, i]) => `<button class="tcard" data-topic="${i}"><i>${IC.tag}</i><b>${esc(x[0])}</b><small>${esc(x[1])} · ${x[3].length} andininy</small></button>`).join('')}</div>` : ''}
     ${w ? `<h2>Teny androany ao amin'ny diksionera</h2><button class="card row" style="display:block;width:100%;text-align:left;border:0" data-dw="${esc(w.id)}"><b>${esc(w.w)}</b> <span class="mut">${esc(w.g || '')}</span><br><span class="mut">${esc((w.t || '').slice(0, 110))}…</span></button>` : ''}`;
-  view.onclick = (e) => {
+  view.onclick = async (e) => {
+    if (e.target.closest('#nOn')) { try { await Notification.requestPermission(); } catch {} return route(); }
     const g = e.target.closest('[data-go]'); if (g) { S.tab = g.dataset.go; S.stack = []; return route(); }
     const r = e.target.closest('[data-ref]'); if (r) return openRef(...r.dataset.ref.split(',').map(Number));
     const t = e.target.closest('[data-topic]'); if (t) { S.tab = 'konk'; S.stack = [{ i: +t.dataset.topic }]; return route(); }
@@ -433,6 +479,7 @@ async function vAbout() {
   if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(() => {});
   renderChrome();
   S.act = (await kvGet('act')) || null;
+  S.notes = (await kvGet('notes')) || [];
   await loadLocal();
   route(); updateBanner();
   setInterval(updateBanner, 30 * 60 * 1000);

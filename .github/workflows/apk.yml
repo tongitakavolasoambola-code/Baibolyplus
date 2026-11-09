@@ -1,6 +1,6 @@
 name: Build APK
-# Release: git tag v1.0.0 && git push --tags  → APK apetraka ao amin'ny GitHub Releases
-# Fitsapana: GitHub → Actions → "Build APK" → Run workflow (APK ao amin'ny Artifacts ihany)
+# Release: ao amin'ny GitHub → Releases → Draft a new release → tag v1.0.0 → Publish  (APK apetraka ao amin'ny Release)
+# Fitsapana: Actions → "Build APK" → Run workflow (APK ao amin'ny Artifacts ihany)
 permissions:
   contents: write
 on:
@@ -10,30 +10,48 @@ on:
 jobs:
   apk:
     runs-on: ubuntu-latest
+    env:
+      PW: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with: { node-version: 20 }
       - uses: actions/setup-java@v4
         with: { distribution: temurin, java-version: 17 }
-      - name: Bubblewrap config
+
+      - name: Keystore (hamarino)
+        env:
+          KS: ${{ secrets.ANDROID_KEYSTORE_B64 }}
+        run: |
+          if [ -z "$KS" ] || [ -z "$PW" ]; then
+            echo "::error::Tsy hita ny secrets ANDROID_KEYSTORE_B64 na ANDROID_KEYSTORE_PASSWORD (Settings → Secrets and variables → Actions)."; exit 1; fi
+          echo "$KS" | tr -d ' \n\r' | base64 -d > android.keystore
+          keytool -list -v -keystore android.keystore -storepass "$PW" -alias baiboly > ks.txt || { echo "::error::Diso ny keystore, ny alias (baiboly) na ny teny miafina."; exit 1; }
+          FP=$(grep 'SHA256:' ks.txt | head -1 | sed 's/^ *//')
+          echo "### Fanamarinana (SHA256) ho an'ny assetlinks.json" >> "$GITHUB_STEP_SUMMARY"
+          echo "$FP" >> "$GITHUB_STEP_SUMMARY"; echo "$FP"
+
+      - name: Tetikasa Android (Bubblewrap)
         run: |
           mkdir -p ~/.bubblewrap
           echo "{\"jdkPath\":\"$JAVA_HOME\",\"androidSdkPath\":\"$ANDROID_HOME\"}" > ~/.bubblewrap/config.json
-      - name: Keystore
-        run: echo "${{ secrets.ANDROID_KEYSTORE_B64 }}" | base64 -d > android.keystore
-      - name: Build
-        env:
-          BUBBLEWRAP_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
-          BUBBLEWRAP_KEY_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
-        run: |
           npx --yes @bubblewrap/cli@1 update --manifest=twa-manifest.json --skipVersionUpgrade
-          npx --yes @bubblewrap/cli@1 build --skipPwaValidation --manifest=twa-manifest.json
-      - name: Anarana APK
+
+      - name: Manamboatra APK (Gradle)
         run: |
+          yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --licenses > /dev/null || true
+          chmod +x gradlew
+          ./gradlew --no-daemon assembleRelease
+          UNSIGNED=$(find . -name '*-unsigned.apk' -path '*release*' | head -1)
+          echo "unsigned: $UNSIGNED"
+          BT=$(ls -d "$ANDROID_HOME"/build-tools/* | sort -V | tail -1)
+          "$BT/zipalign" -p -f 4 "$UNSIGNED" aligned.apk
+          "$BT/apksigner" sign --ks android.keystore --ks-key-alias baiboly --ks-pass env:PW --key-pass env:PW --out signed.apk aligned.apk
+          "$BT/apksigner" verify signed.apk
           V="${GITHUB_REF_NAME}"; case "$V" in v*) ;; *) V="test-${GITHUB_RUN_NUMBER}";; esac
-          cp app-release-signed.apk "Baiboly-Plus-$V.apk"
-          echo "APK_FILE=Baiboly-Plus-$V.apk" >> $GITHUB_ENV
+          cp signed.apk "Baiboly-Plus-$V.apk"
+          echo "APK_FILE=Baiboly-Plus-$V.apk" >> "$GITHUB_ENV"
+
       - name: GitHub Release
         if: startsWith(github.ref, 'refs/tags/v')
         uses: softprops/action-gh-release@v2
@@ -43,6 +61,4 @@ jobs:
       - uses: actions/upload-artifact@v4
         with:
           name: baiboly-plus-apk
-          path: |
-            ${{ env.APK_FILE }}
-            app-release-bundle.aab
+          path: ${{ env.APK_FILE }}

@@ -9,7 +9,7 @@
   "navigationColor": "#5b3a1e",
   "navigationColorDark": "#5b3a1e",
   "backgroundColor": "#ffffff",
-  "enableNotifications": false,
+  "enableNotifications": true,
   "startUrl": "/index.html",
   "iconUrl": "https://baiboly-20259.web.app/icon-512.png",
   "maskableIconUrl": "https://baiboly-20259.web.app/icon-512.png",

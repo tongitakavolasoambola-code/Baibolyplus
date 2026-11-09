@@ -1,6 +1,6 @@
 /* Service worker — mitahiry ny "shell" an'ny app mba hosokafana offline.
    Ny data (Baiboly, Diksionera...) dia ao IndexedDB; ny sary diksionera ao 'dico-img'. */
-const SHELL = 'shell-v2';
+const SHELL = 'shell-v4';
 const ASSETS = ['./', './index.html', './app.js', './style.css', './firebase-config.js', './manifest.webmanifest', './icon-192.png', './icon-512.png'];
 
 self.addEventListener('install', (e) => {
@@ -39,4 +39,9 @@ self.addEventListener('fetch', (e) => {
       return hit || net; // cache aloha, avy eo manavao ao ambadika
     })
   );
+});
+
+self.addEventListener('notificationclick', (e) => {
+  e.notification.close();
+  e.waitUntil(self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((cs) => (cs[0] ? cs[0].focus() : self.clients.openWindow('./'))));
 });
