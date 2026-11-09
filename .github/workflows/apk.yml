@@ -25,8 +25,16 @@ jobs:
         run: |
           if [ -z "$KS" ] || [ -z "$PW" ]; then
             echo "::error::Tsy hita ny secrets ANDROID_KEYSTORE_B64 na ANDROID_KEYSTORE_PASSWORD (Settings → Secrets and variables → Actions)."; exit 1; fi
-          echo "$KS" | tr -d ' \n\r' | base64 -d > android.keystore
-          keytool -list -v -keystore android.keystore -storepass "$PW" -alias baiboly > ks.txt || { echo "::error::Diso ny keystore, ny alias (baiboly) na ny teny miafina."; exit 1; }
+          echo "Habeny ny secret ANDROID_KEYSTORE_B64: ${#KS} litera (ho an'ny keystore ~2700-3500)"
+          echo "$KS" | tr -d ' \n\r' | base64 -d > android.keystore || echo "Fampitandremana: tsy mety ny base64"
+          ls -l android.keystore
+          if ! keytool -list -v -keystore android.keystore -storepass "$PW" -alias baiboly > ks.txt 2>&1; then
+            echo "::error::Diso ny keystore, ny alias (baiboly) na ny teny miafina. Antony avy amin'ny keytool:"
+            head -4 ks.txt
+            echo "--- lisitry ny alias ao anaty keystore:"
+            keytool -list -keystore android.keystore -storepass "$PW" 2>&1 | head -6 || true
+            exit 1
+          fi
           FP=$(grep 'SHA256:' ks.txt | head -1 | sed 's/^ *//')
           echo "### Fanamarinana (SHA256) ho an'ny assetlinks.json" >> "$GITHUB_STEP_SUMMARY"
           echo "$FP" >> "$GITHUB_STEP_SUMMARY"; echo "$FP"
