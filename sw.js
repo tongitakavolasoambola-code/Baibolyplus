@@ -1,6 +1,6 @@
 /* Service worker — mitahiry ny "shell" an'ny app mba hosokafana offline.
    Ny data (Baiboly, Diksionera...) dia ao IndexedDB; ny sary diksionera ao 'dico-img'. */
-const SHELL = 'shell-v1';
+const SHELL = 'shell-v2';
 const ASSETS = ['./', './index.html', './app.js', './style.css', './firebase-config.js', './manifest.webmanifest', './icon-192.png', './icon-512.png'];
 
 self.addEventListener('install', (e) => {

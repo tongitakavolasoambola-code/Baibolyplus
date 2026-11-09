@@ -175,7 +175,9 @@ async function sync(manual = false) {
     } catch (e) { console.warn('firebase', e); if (manual) toast('Tsy tafiditra ny activation (' + (e.message || e.code) + ')'); }
     if (changed) toast(`Voavao: ${changed} fichier`); else if (manual && S.act?.active) toast('Efa vaovao daholo');
     $('#banner').hidden = true;
-    route();
+    // aza averina soratana ny pejy raha mbola manoratra ao amin'ny saha ny olona (activation)
+    const ae = document.activeElement;
+    if (!(ae && /^(INPUT|TEXTAREA)$/.test(ae.tagName) && view.contains(ae))) route();
   } catch (e) {
     console.warn(e); if (manual) toast('Tsy vita ny fanavaozana (' + (e.message || e.code) + ')');
   } finally { syncing = false; $('#syncBtn').innerHTML = IC.sync; updateBanner(); }
@@ -204,6 +206,7 @@ async function lockScreen() {
   setTitle('Activation');
   const P = window.PAY_INFO || {};
   const req = await kvGet('reqSent');
+  const old = { n: $('#rn')?.value, p: $('#rp')?.value, r: $('#rr')?.value };   // mitazona ny efa nosoratana raha averina soratana ny pejy
   const code = S.act?.uid ? S.act.uid.slice(0, 8).toUpperCase() : '…';
   view.innerHTML = `
   <div class="card">
@@ -214,9 +217,9 @@ async function lockScreen() {
       <li>Ny <b>Admin</b> no mijery ny fandoavana ary mampiasa ny activation <b>amin'ny tanana</b> (tsy automatique). Rehefa vita ny fanamarinana, tsindrio ny <b>Hamarino ny activation</b>.</li>
     </ol>
     <p class="mut">Kaody finday: <b id="uid" style="word-break:break-all;user-select:all">${esc(S.act?.uid || '…')}</b> <button class="chip" id="cp">Adikao</button><br>Mifamatotra amin'ity finday ity ny activation. Azonao alefa amin'ny Admin ny kaody raha tsy mandeha ny fangatahana.</p>
-    <label class="field"><span>Anarana</span><input id="rn" value="${esc(req?.name || '')}" autocomplete="name"></label>
-    <label class="field"><span>Laharana MVola nandefa</span><input id="rp" inputmode="tel" value="${esc(req?.phone || '')}"></label>
-    <label class="field"><span>Référence MVola</span><input id="rr" value="${esc(req?.ref || '')}"></label>
+    <label class="field"><span>Anarana</span><input id="rn" value="${esc(old.n ?? req?.name ?? '')}" autocomplete="name"></label>
+    <label class="field"><span>Laharana MVola nandefa</span><input id="rp" inputmode="tel" value="${esc(old.p ?? req?.phone ?? '')}"></label>
+    <label class="field"><span>Référence MVola</span><input id="rr" value="${esc(old.r ?? req?.ref ?? '')}"></label>
     <p><button class="btn" id="send">Alefa ny fangatahana</button> <button class="btn alt" id="chk">Hamarino ny activation</button></p>
     <p class="mut" id="st">${req ? 'Fangatahana nalefa ' + new Date(req.ts).toLocaleString('fr') + '. Miandry fanamarinana.' : ''}</p>
   </div>`;
