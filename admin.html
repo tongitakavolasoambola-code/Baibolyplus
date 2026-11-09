@@ -11,6 +11,11 @@ button.r{background:#a33}button.g{background:#2a7a3b}.mut{color:#7a6a58;font-siz
 #log{white-space:pre-wrap;font:12px monospace;max-height:220px;overflow:auto;background:#fff;border:1px solid #e6cdbd;padding:8px;border-radius:8px}
 .bar{height:8px;background:#e6cdbd;border-radius:4px;overflow:hidden;margin:6px 0}.bar i{display:block;height:100%;background:#b5603a;width:0}
 code{background:#0001;padding:0 4px;border-radius:4px}
+textarea,select{padding:9px;border:1px solid #ccb;border-radius:8px;font:inherit;width:100%;margin:4px 0;background:#fff}
+label.f{display:block;margin:8px 0 0;font-size:.85rem;color:#7a6a58}
+.row{display:flex;gap:6px;align-items:center}.row>*{margin:2px 0}.row select{flex:3}.row input{flex:1;min-width:0}
+.hit{display:block;width:100%;text-align:left;background:#fff;color:#2e1a10;border:1px solid #e6cdbd;margin:2px 0}
+.hit.on{background:#f0d9c8}img.pv{max-width:100%;max-height:220px;border-radius:8px;display:block;margin:6px 0}
 </style></head><body>
 <h1>Admin — Baiboly+</h1>
 <div id="login" class="card">
@@ -53,6 +58,44 @@ code{background:#0001;padding:0 4px;border-radius:4px}
     <button id="upImg">Ahena sy alefa</button>
     <div class="bar"><i id="pb2"></i></div>
   </div>
+  <h2>5. Diksionera — hikaroka / hanova / hanampy teny</h2>
+  <div class="card">
+    <p class="mut">Ampidino aloha ny angona ao amin'ny Firestore, dia karohy ny teny tianao ovaina (na tsindrio « Teny vaovao »). Rehefa tahirizina dia mivoatra ho azy ao amin'ny finday rehetra ny fanavaozana. <b>Ity Admin ity no loharano marina</b>: raha avereno atao <code>node tools/build.js</code> sy alefa indray ny data avy amin'ny <code>src/</code>, dia mahatsapa ny fanovanao. Ampiasao ny « Backup » raha te hitahiry azy ao amin'ny <code>src/</code>.</p>
+    <button id="dLoad">Ampidino ny angona</button> <span class="mut" id="dInfo"></span>
+    <div id="dBox" hidden>
+      <input id="dQ" placeholder="Hikaroka teny (ohatra Balsama)…" autocomplete="off">
+      <div id="dRes"></div>
+      <hr>
+      <b id="dTitle">Teny vaovao</b>
+      <label class="f">Teny</label><input id="dW" autocomplete="off">
+      <label class="f">Karazana / fiavian'ny teny (tsy voatery)</label><input id="dG" autocomplete="off">
+      <label class="f">Fanazavana</label><textarea id="dT" rows="6"></textarea>
+      <label class="f">Fanondroana Baiboly (andalana iray isaky ny fanondroana)</label><textarea id="dR" rows="3"></textarea>
+      <div class="row"><select id="dBk"></select><input id="dCh" type="number" min="1" placeholder="Toko"><input id="dVs" placeholder="Andininy"><button id="dAddRef" type="button">Ampio</button></div>
+      <label class="f">Sary</label><img id="dPrev" class="pv" hidden alt="">
+      <input id="dImg" type="file" accept="image/*"> <label><input id="dNoImg" type="checkbox" style="width:auto"> Esory ny sary</label>
+      <p><button class="g" id="dSave">Tahirizina</button> <button id="dNew">Teny vaovao</button> <button class="r" id="dDel">Fafana</button> <button id="dBak" style="background:#888">Backup (JSON)</button></p>
+    </div>
+  </div>
+
+  <h2>6. Lohahevitra (hevitra ao amin'ny Konkordansa) — hikaroka / hanova / hanampy</h2>
+  <div class="card">
+    <button id="lLoad">Ampidino ny angona</button> <span class="mut" id="lInfo"></span>
+    <div id="lBox" hidden>
+      <input id="lQ" placeholder="Hikaroka lohahevitra…" autocomplete="off">
+      <div id="lRes"></div>
+      <hr>
+      <b id="lTitle">Lohahevitra vaovao</b>
+      <label class="f">Lohateny (Malagasy)</label><input id="lMg" autocomplete="off">
+      <label class="f">Titre (Français)</label><input id="lFr" autocomplete="off">
+      <label class="f">Title (English)</label><input id="lEn" autocomplete="off">
+      <label class="f">Boky · Toko · Andininy</label>
+      <div id="lRefs"></div>
+      <button id="lAddRow" type="button">+ Ampio andalana</button>
+      <p><button class="g" id="lSave">Tahirizina</button> <button id="lNew">Vaovao</button> <button class="r" id="lDel">Fafana</button> <button id="lBak" style="background:#888">Backup (JSON)</button></p>
+    </div>
+  </div>
+
   <div id="log"></div>
 </div>
 
@@ -145,4 +188,125 @@ $('#upImg').onclick=async()=>{
   if(b0)log(`Sary: ${(b0/1e6).toFixed(1)} MB → ${(b1/1e6).toFixed(1)} MB (${100-Math.round(b1*100/b0)}% nihena)`);}
   catch(e){log('Hadisoana: '+e.message)}
 };
+
+/* ================= Fanovana angona (Diksionera + Lohahevitra) ================= */
+const BOOKS=["Genesỳ", "Eksôdy", "Levitîka", "Nomerỳ", "Deoterônômy", "Josoa", "Mpitsara", "Rota", "1 Samoela", "2 Samoela", "1 Mpanjaka", "2 Mpanjaka", "1 Tantara", "2 Tantara", "Hezrà", "Nehemià", "Estera", "Jôba", "Salamo", "Ohabolana", "Kôheleta", "Tononkiran'i Salômôna", "Isaià", "Jeremià", "Fitomaniana", "Ezekiela", "Daniela", "Hôsea", "Jôela", "Hamôsa", "Hôbadià", "Jônà", "Mikà", "Nahoma", "Habakòka", "Tsefanià", "Hagay", "Zakarià", "Malakỳ", "Matio", "Marka", "Lioka", "Jôhany", "Asan'ny Apôstôly", "Rômanina", "1 Kôrintianina", "2 Kôrintianina", "Galatianina", "Efesianina", "Filipianina", "Kôlôsianina", "1 Tesalônisianina", "2 Tesalônisianina", "1 Timôty", "2 Timôty", "Tito", "Filemôna", "Hebreo", "Jakôba", "1 Petera", "2 Petera", "1 Jôhany", "2 Jôhany", "3 Jôhany", "Joda", "Apôkalipsỳ"];
+const strip=s=>String(s).normalize('NFD').replace(/[̀-ͯ]/g,'');
+const sha=async t=>[...new Uint8Array(await crypto.subtle.digest('SHA-1',new TextEncoder().encode(t)))].map(x=>x.toString(16).padStart(2,'0')).join('').slice(0,10);
+async function readVer(){const d=await fs.doc('data/_version').get();if(!d.exists)throw new Error("Mbola tsy misy data ao amin'ny Firestore: alefa aloha ny dingana 3.");return d.data()}
+async function readFile(ver,k){const f=ver.files.find(x=>x.k===k);if(!f)return null;let t='';for(let i=0;i<f.n;i++){const d=await fs.doc('data/'+docId(k,i)).get();if(!d.exists)throw new Error('Tsy hita: '+k);t+=d.data().t}return JSON.parse(t)}
+async function saveFiles(map,drop=[]){      // {anarana: objet}; version no soratana farany; drop = fichier hofafana
+  const ver=await readVer();
+  for(const k of drop){const o=ver.files.find(x=>x.k===k);if(o){for(let i=0;i<o.n;i++)await fs.doc('data/'+docId(k,i)).delete();ver.files=ver.files.filter(x=>x!==o)}}
+  for(const [k,obj] of Object.entries(map)){
+    const text=JSON.stringify(obj),h=await sha(text),c=await putFile(k,text),old=ver.files.find(x=>x.k===k);
+    for(let i=c;i<(old?old.n:0);i++)await fs.doc('data/'+docId(k,i)).delete();
+    if(old){old.h=h;old.n=c}else ver.files.push({k,h,n:c});
+  }
+  await fs.doc('data/_version').set({updated:new Date().toISOString(),files:ver.files});
+}
+const download=(name,obj)=>{const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([JSON.stringify(obj,null,1)],{type:'application/json'}));a.download=name;a.click()};
+const bookOpts=BOOKS.map((b,i)=>`<option value="${i+1}">${esc(b)}</option>`).join('');
+$('#dBk').innerHTML=bookOpts;
+
+/* ---- Diksionera ---- */
+let DI=null,dCur=null;                     // DI={letters:[], files:{L:[entries]}}; dCur={L,i}|null
+const letterOf=w=>(strip(w||'?').trim()[0]||'?').toUpperCase();
+const dAll=()=>DI.letters.flatMap(L=>DI.files[L].map((e,i)=>({e,L,i})));
+$('#dLoad').onclick=async()=>{
+  try{$('#dInfo').textContent='Mamaky…';const ver=await readVer(),idx=await readFile(ver,'dico/index.json');
+    DI={letters:idx.letters.slice(),files:{}};for(const L of DI.letters)DI.files[L]=(await readFile(ver,`dico/${L}.json`))||[];
+    $('#dInfo').textContent=dAll().length+' teny';$('#dBox').hidden=false;dFill(null);dSearch();
+  }catch(e){$('#dInfo').textContent='';alert(e.message)}
+};
+function dSearch(){
+  const q=strip($('#dQ').value).toLowerCase().trim(),all=dAll().filter(x=>!q||strip(x.e.w).toLowerCase().includes(q)).slice(0,40);
+  $('#dRes').innerHTML=all.map(x=>`<button class="hit${dCur&&dCur.L===x.L&&dCur.i===x.i?' on':''}" data-d="${x.L}|${x.i}">${esc(x.e.w)}${x.e.img?' 🖼':''}</button>`).join('')||'<p class="mut">Tsy hita.</p>';
+}
+$('#dQ').oninput=dSearch;
+$('#dRes').onclick=e=>{const b=e.target.closest('[data-d]');if(!b)return;const [L,i]=b.dataset.d.split('|');dFill({L,i:+i});dSearch()};
+async function dFill(c){
+  dCur=c;const e=c?DI.files[c.L][c.i]:null;
+  $('#dTitle').textContent=e?'Fanovana: '+e.w:'Teny vaovao';
+  $('#dW').value=e?e.w:'';$('#dG').value=e?e.g||'':'';$('#dT').value=e?e.t||'':'';
+  $('#dR').value=e?(Array.isArray(e.r)?e.r.join('\n'):e.r||''):'';
+  $('#dImg').value='';$('#dNoImg').checked=false;$('#dPrev').hidden=true;
+  if(e&&e.img){try{const d=await fs.doc('data/img~'+e.img).get();if(d.exists&&dCur===c){$('#dPrev').src=d.data().b64;$('#dPrev').hidden=false}}catch{}}
+}
+$('#dNew').onclick=()=>{dFill(null);dSearch();$('#dW').focus()};
+$('#dAddRef').onclick=()=>{
+  const ch=$('#dCh').value.trim(),vs=$('#dVs').value.trim();if(!ch)return alert('Soraty ny toko');
+  const line=BOOKS[+$('#dBk').value-1]+' '+ch+(vs?'.'+vs:'');const r=$('#dR');r.value=(r.value.trim()?r.value.trim()+'\n':'')+line;$('#dCh').value='';$('#dVs').value='';
+};
+$('#dSave').onclick=async()=>{
+  const w=$('#dW').value.trim().toLocaleUpperCase();if(!w)return alert('Soraty ny teny');
+  const old=dCur?DI.files[dCur.L][dCur.i]:null;
+  const e={...(old||{}),w,g:$('#dG').value.trim(),t:$('#dT').value.trim(),r:$('#dR').value.split('\n').map(x=>x.trim()).filter(Boolean)};
+  if(!old){let base='d-'+(strip(w).toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'')||'x'),id=base,n=2;const ids=new Set(dAll().map(x=>x.e.id));while(ids.has(id))id=base+'-'+n++;e.id=id}
+  try{
+    const f=$('#dImg').files[0];
+    if(f){const blob=await shrink(f),data=await b64(blob);if(data.length>950000)return alert('Lehibe loatra ny sary');
+      e.img=e.id+'.webp';await fs.doc('data/img~'+e.img).set({b64:data});log(`↑ sary ${e.img} (${(blob.size/1024)|0} KB)`)}
+    else if($('#dNoImg').checked&&e.img){try{await fs.doc('data/img~'+e.img).delete()}catch{}delete e.img}
+    const L=letterOf(w),touched=new Set([L]);
+    if(old&&dCur.L!==L){DI.files[dCur.L].splice(dCur.i,1);touched.add(dCur.L)}
+    if(!DI.files[L]){DI.files[L]=[];DI.letters.push(L);DI.letters.sort((a,b)=>a.localeCompare(b,'mg'))}
+    const arr=DI.files[L];
+    if(old&&dCur.L===L)arr[dCur.i]=e;
+    else{let k=arr.findIndex(x=>x.w.localeCompare(w,'mg')>0);if(k<0)k=arr.length;arr.splice(k,0,e)}
+    const map={};touched.forEach(l=>map[`dico/${l}.json`]=DI.files[l]);
+    map['dico/index.json']={letters:DI.letters,total:dAll().length};
+    await saveFiles(map);log('✔ Tahirizina: '+w);
+    const pos=DI.files[L].indexOf(e);dFill({L,i:pos});$('#dInfo').textContent=dAll().length+' teny';dSearch();
+  }catch(err){log('Hadisoana: '+err.message);alert(err.message)}
+};
+$('#dDel').onclick=async()=>{
+  if(!dCur)return alert('Fidio aloha ny teny');const e=DI.files[dCur.L][dCur.i];if(!confirm('Hafafana ve ny « '+e.w+' » ?'))return;
+  try{const L=dCur.L;DI.files[L].splice(dCur.i,1);const drop=[],map={};
+    if(DI.files[L].length)map[`dico/${L}.json`]=DI.files[L];else{delete DI.files[L];DI.letters=DI.letters.filter(x=>x!==L);drop.push(`dico/${L}.json`)}   // litera foana: esorina
+    map['dico/index.json']={letters:DI.letters,total:dAll().length};
+    await saveFiles(map,drop);
+    if(e.img){try{await fs.doc('data/img~'+e.img).delete()}catch{}}
+    log('✔ Voafafa: '+e.w);dFill(null);$('#dInfo').textContent=dAll().length+' teny';dSearch();
+  }catch(err){log('Hadisoana: '+err.message);alert(err.message)}
+};
+$('#dBak').onclick=()=>DI&&download('dikisionera-backup.json',dAll().map(x=>x.e));
+
+/* ---- Lohahevitra: [mg, fr, en, [[boky 1-66, toko, andininy], …]] ---- */
+let LH=null,lCur=-1;
+const lRow=(r=[1,'',''])=>`<div class="row"><select>${bookOpts.replace(`value="${r[0]}"`,`value="${r[0]}" selected`)}</select><input type="number" min="1" placeholder="Toko" value="${r[1]}"><input type="number" min="1" placeholder="Andininy" value="${r[2]}"><button type="button" class="r" data-x>✖</button></div>`;
+$('#lLoad').onclick=async()=>{
+  try{$('#lInfo').textContent='Mamaky…';const ver=await readVer();LH=await readFile(ver,'lohahevitra.json');
+    if(!LH)throw new Error("Tsy hita ny lohahevitra ao amin'ny Firestore");
+    $('#lInfo').textContent=LH.length+' lohahevitra';$('#lBox').hidden=false;lFill(-1);lSearch();
+  }catch(e){$('#lInfo').textContent='';alert(e.message)}
+};
+function lSearch(){
+  const q=strip($('#lQ').value).toLowerCase().trim(),l=LH.map((e,i)=>({e,i})).filter(x=>!q||strip(x.e.slice(0,3).join(' ')).toLowerCase().includes(q)).slice(0,40);
+  $('#lRes').innerHTML=l.map(x=>`<button class="hit${x.i===lCur?' on':''}" data-l="${x.i}">${esc(x.e[0])} <span class="mut">${esc(x.e[1]||'')} · ${esc(x.e[2]||'')}</span></button>`).join('')||'<p class="mut">Tsy hita.</p>';
+}
+$('#lQ').oninput=lSearch;
+$('#lRes').onclick=e=>{const b=e.target.closest('[data-l]');if(!b)return;lFill(+b.dataset.l);lSearch()};
+function lFill(i){
+  lCur=i;const e=i>=0?LH[i]:null;$('#lTitle').textContent=e?'Fanovana: '+e[0]:'Lohahevitra vaovao';
+  $('#lMg').value=e?e[0]:'';$('#lFr').value=e?e[1]||'':'';$('#lEn').value=e?e[2]||'':'';
+  $('#lRefs').innerHTML=e?e[3].map(r=>lRow(r)).join(''):lRow();
+}
+$('#lRefs').onclick=e=>{const b=e.target.closest('[data-x]');if(b)b.parentNode.remove()};
+$('#lAddRow').onclick=()=>$('#lRefs').insertAdjacentHTML('beforeend',lRow());
+$('#lNew').onclick=()=>{lFill(-1);lSearch();$('#lMg').focus()};
+$('#lSave').onclick=async()=>{
+  const mg=$('#lMg').value.trim();if(!mg)return alert('Soraty ny lohateny Malagasy');
+  const refs=[...document.querySelectorAll('#lRefs .row')].map(r=>{const [s,c,v]=r.querySelectorAll('select,input');return [+s.value,parseInt(c.value),parseInt(v.value)]}).filter(r=>r[0]>=1&&r[0]<=66&&r[1]>0&&r[2]>0);
+  const e=[mg,$('#lFr').value.trim(),$('#lEn').value.trim(),refs];
+  try{if(lCur>=0)LH[lCur]=e;else{LH.push(e);lCur=LH.length-1}
+    await saveFiles({'lohahevitra.json':LH});log(`✔ Tahirizina: ${mg} (${refs.length} andininy)`);$('#lInfo').textContent=LH.length+' lohahevitra';lFill(lCur);lSearch();
+  }catch(err){log('Hadisoana: '+err.message);alert(err.message)}
+};
+$('#lDel').onclick=async()=>{
+  if(lCur<0)return alert('Fidio aloha ny lohahevitra');if(!confirm('Hafafana ve ny « '+LH[lCur][0]+' » ?'))return;
+  try{const [x]=LH.splice(lCur,1);await saveFiles({'lohahevitra.json':LH});log('✔ Voafafa: '+x[0]);$('#lInfo').textContent=LH.length+' lohahevitra';lFill(-1);lSearch()}
+  catch(err){log('Hadisoana: '+err.message);alert(err.message)}
+};
+$('#lBak').onclick=()=>LH&&download('lohahevitra-backup.json',LH);
 </script></body></html>
