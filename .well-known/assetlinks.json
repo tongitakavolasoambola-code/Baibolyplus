@@ -1,1 +1,2 @@
-[]
+
+[{"relation":["delegate_permission/common.handle_all_urls"],"target":{"namespace":"android_app","package_name":"mg.baibolyplus.app","sha256_cert_fingerprints":["CB:D8:FC:DC:E9:38:2E:B6:EE:FA:FA:B5:D6:85:9B:50:8E:18:03:D2:08:12:5D:2F:27:00:3E:04:4A:ED:D8:F4"]}}]
