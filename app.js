@@ -50,6 +50,9 @@ function applyLook() {
   const c = rgb.length === 3 ? '#' + rgb.join('') : '#b01c26';
   const tc = $('#tc'); if (tc) tc.content = c;
 }
+const curFs = () => Math.min(1.6, Math.max(0.8, +lsGet('fs') || 1));
+function applyFs() { document.documentElement.style.setProperty('--fs', curFs()); }
+function setFs(d) { lsSet('fs', Math.round((curFs() + d) * 10) / 10); applyFs(); renderDrawer(); }
 function setTheme(t) { lsSet('theme', t); applyLook(); renderDrawer(); }
 function setMode(m) { lsSet('mode', m); applyLook(); renderDrawer(); }
 try { matchMedia('(prefers-color-scheme: dark)').addEventListener('change', applyLook); } catch {}
@@ -67,6 +70,8 @@ function renderDrawer() {
     ${NAV.map(([t, l, i]) => `<button class="item ${S.tab === t ? 'on' : ''}" data-t="${t}">${IC[i]}<span>${l}</span></button>`).join('')}
     <h4>Endrika (couleur)</h4>
     <div class="swatches">${THEMES.map(([k, n, c]) => `<button class="sw ${curTheme() === k ? 'on' : ''}" data-theme="${k}" style="background:${c}" title="${n}" aria-label="${n}"></button>`).join('')}</div>
+    <h4>Haben'ny soratra</h4>
+    <div class="modes fsz"><button data-fs="-0.1" aria-label="Hakely">A−</button><span>${Math.round(curFs() * 100)}%</span><button data-fs="0.1" aria-label="Hanatsara">A+</button></div>
     <h4>Mode</h4>
     <div class="modes">${MODES.map(([k, n]) => `<button data-mode="${k}" class="${curMode() === k ? 'on' : ''}">${n}</button>`).join('')}</div>
     <div class="sp"></div>
@@ -78,8 +83,9 @@ const openDrawer = () => { $('#drawer').classList.add('on'); $('#scrim').classLi
 const closeDrawer = () => { $('#drawer').classList.remove('on'); $('#scrim').classList.remove('on'); $('#drawer').setAttribute('aria-hidden', 'true'); };
 document.addEventListener('click', (e) => {
   const t = e.target.closest('[data-t]');
-  if (t && (t.closest('#tabs') || t.closest('#drawer') || t.closest('.cats'))) { S.tab = t.dataset.t; S.stack = []; closeDrawer(); route(); return; }
+  if (t && (t.closest('#tabs') || t.closest('#drawer') || t.closest('.cats'))) { S.tab = t.dataset.t; S.stack = []; S.ret = null; closeDrawer(); route(); return; }
   const th = e.target.closest('.sw'); if (th) return setTheme(th.dataset.theme);
+  const fz = e.target.closest('[data-fs]'); if (fz) return setFs(+fz.dataset.fs);
   const md = e.target.closest('[data-mode]'); if (md && md.closest('#drawer')) return setMode(md.dataset.mode);
   if (e.target.closest('#menuBtn')) return openDrawer();
   if (e.target.closest('#dx') || e.target.id === 'scrim') return closeDrawer();
@@ -147,6 +153,8 @@ async function loadLocal() {
   // Malalaka: Baiboly · Mila activation: Konkordansa (miaraka amin'ny hevitra) + Diksionera (afenina raha tsy mavitrika)
   const on = !!(S.act && S.act.active);
   S.bible = (await kvGet('f:free/bible.json'))?.books || null;
+  if (S.bible) S.bible.forEach((b) => { b.n = b.n.replace(/Jôhany/g, 'Jaona'); });
+  if (S.konk?.books) S.konk.books = S.konk.books.map((n) => n.replace(/Jôhany/g, 'Jaona'));
   S.topics = on ? (await kvGet('f:lohahevitra.json')) || null : null;
   S.konk = on ? (await kvGet('f:konk.json')) || null : null;
   S.dicoIdx = on ? (await kvGet('f:dico/index.json')) || null : null;
@@ -246,7 +254,11 @@ addEventListener('online', () => sync());
 /* ================= Navigation ================= */
 const view = $('#view');
 function setTitle(t, back) { $('#title').textContent = t; $('#back').hidden = !back; }
-$('#back').onclick = () => { S.stack.pop(); route(); };
+$('#back').onclick = () => {
+  // Raha nisokatra avy amin'ny Konkordansa ny Baiboly: miverina any amin'ny lisitra tao
+  if (S.ret && S.tab === 'bible' && S.stack.length <= 2) { const r = S.ret; S.ret = null; S.tab = r.tab; S.stack = r.stack; route(); view.scrollTop = r.scroll || 0; return; }
+  S.stack.pop(); route();
+};
 function route() {
   document.querySelectorAll('#tabs [data-t]').forEach((b) => b.classList.toggle('on', b.dataset.t === S.tab)); renderDrawer();
   // Malalaka: Fandraisana, Baiboly, Momba · Mila activation: Diksionera, Konkordansa
@@ -328,7 +340,7 @@ function vHome() {
     ${w ? `<h2>Teny androany ao amin'ny diksionera</h2><button class="card row" style="display:block;width:100%;text-align:left;border:0" data-dw="${esc(w.id)}"><b>${esc(w.w)}</b> <span class="mut">${esc(w.g || '')}</span><br><span class="mut">${esc((w.t || '').slice(0, 110))}…</span></button>` : ''}`;
   view.onclick = async (e) => {
     if (e.target.closest('#nOn')) { try { await Notification.requestPermission(); } catch {} return route(); }
-    const g = e.target.closest('[data-go]'); if (g) { S.tab = g.dataset.go; S.stack = []; return route(); }
+    const g = e.target.closest('[data-go]'); if (g) { S.tab = g.dataset.go; S.stack = []; S.ret = null; return route(); }
     const r = e.target.closest('[data-ref]'); if (r) return openRef(...r.dataset.ref.split(',').map(Number));
     const t = e.target.closest('[data-topic]'); if (t) { S.tab = 'konk'; S.stack = [{ i: +t.dataset.topic }]; return route(); }
     const d = e.target.closest('[data-dw]'); if (d) { S.tab = 'dico'; S.stack = [{ id: d.dataset.dw }]; return route(); }
@@ -360,7 +372,7 @@ function vBible() {
 const bookName = (bi) => (S.bible ? S.bible[bi].n : S.konk?.books[bi]) || '?';
 const refLabel = (bi, c, v) => `${bookName(bi)} ${c}:${v}`;
 const verseText = (bi, c, v) => S.bible?.[bi]?.c[c - 1]?.[v - 1] || '';
-function openRef(bi, c, v) { S.tab = 'bible'; S.stack = [{ b: bi }, { b: bi, c: c - 1, v }]; route(); }
+function openRef(bi, c, v) { if (S.tab !== 'bible') S.ret = { tab: S.tab, stack: S.stack.slice(), scroll: view.scrollTop }; S.tab = 'bible'; S.stack = [{ b: bi }, { b: bi, c: c - 1, v }]; route(); }
 
 /* ================= Konkordansa ================= */
 // Index avy amin'ny konk.json (refs ihany; mila activation) + soratry ny Baiboly malalaka
@@ -440,16 +452,16 @@ function vDico() {
     setTitle('Diksionera');
     const letters = S.dicoIdx?.letters || [];
     if (!S.dico.length) { view.innerHTML = '<div class="card">Mbola tsy misy teny ao amin\'ny diksionera. Tsindrio ny ⟳.</div>'; return; }
-    view.innerHTML = `<input class="search" id="q" placeholder="Hikaroka teny…" autocomplete="off"><div class="chips" id="ch">${letters.map((L) => `<button class="chip" data-L="${L}">${L}</button>`).join('')}</div><div class="list" id="l"></div>`;
+    view.innerHTML = `<input class="search" id="q" placeholder="Hikaroka teny…" autocomplete="off" value="${esc(S.dq || '')}"><div class="chips" id="ch">${letters.map((L) => `<button class="chip" data-L="${L}">${L}</button>`).join('')}</div><div class="list" id="l"></div>`;
     let L = S.dicoLetter || '';
     const draw = () => {
       const q = strip($('#q').value.trim());
       let list = S.dico.filter((e) => (!L || strip(e.w)[0] === strip(L)) && (!q || strip(e.w).includes(q)));
-      const total = list.length; list = list.slice(0, 150);
-      $('#l').innerHTML = list.map((e) => `<button class="row" data-id="${esc(e.id)}"><span>${esc(e.w)}</span><small>${esc(e.g || '')}</small></button>`).join('') + (total > 150 ? `<p class="mut">${total} teny — ahenao ny fikarohana.</p>` : '');
+      list = list.slice(0, 150);
+      $('#l').innerHTML = list.map((e) => `<button class="row" data-id="${esc(e.id)}"><span>${esc(e.w)}</span><small>${esc(e.g || '')}</small></button>`).join('');
       document.querySelectorAll('#ch .chip').forEach((b) => b.classList.toggle('on', b.dataset.L === L));
     };
-    $('#q').oninput = draw; $('#ch').onclick = (e) => { const b = e.target.closest('[data-L]'); if (b) { L = S.dicoLetter = L === b.dataset.L ? '' : b.dataset.L; draw(); } };
+    $('#q').oninput = () => { S.dq = $('#q').value; draw(); }; $('#ch').onclick = (e) => { const b = e.target.closest('[data-L]'); if (b) { L = S.dicoLetter = L === b.dataset.L ? '' : b.dataset.L; draw(); } };
     $('#l').onclick = (e) => { const b = e.target.closest('[data-id]'); if (b) { S.stack.push({ id: b.dataset.id }); route(); } };
     draw();
   } else {
@@ -494,7 +506,7 @@ async function vAbout() {
 /* ================= Boot ================= */
 (async () => {
   if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(() => {});
-  applyLook(); renderChrome();
+  applyLook(); applyFs(); renderChrome();
   S.act = (await kvGet('act')) || null;
   S.notes = (await kvGet('notes')) || [];
   await loadLocal();
