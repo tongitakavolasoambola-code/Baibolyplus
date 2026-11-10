@@ -122,3 +122,5 @@ mark{background:var(--hl);color:inherit;border-radius:4px;padding:0 2px}
 .numrow b{flex:1;font:800 1.25rem system-ui;letter-spacing:.02em}
 .numrow .btn{padding:9px 16px}
 .nm{text-align:center;font-weight:800;margin:6px 0 12px}
+
+.drawer .copy{text-align:center;font:600 .8rem system-ui,sans-serif;opacity:.85;padding:10px 0 2px;border-top:1px solid #ffffff2e;margin-top:6px}

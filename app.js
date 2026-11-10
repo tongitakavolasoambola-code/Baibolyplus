@@ -71,6 +71,7 @@ function renderDrawer() {
     <div class="modes">${MODES.map(([k, n]) => `<button data-mode="${k}" class="${curMode() === k ? 'on' : ''}">${n}</button>`).join('')}</div>
     <div class="sp"></div>
     <button class="item" id="dsync">${IC.sync}<span>Hanavao izao</span></button>
+    <div class="copy">© Tongitakavolasoa 2026</div>
     <div class="foot">${esc(THEMES.find((x) => x[0] === curTheme())[1])} · ${esc(MODES.find((x) => x[0] === curMode())[1])}</div>`;
 }
 const openDrawer = () => { $('#drawer').classList.add('on'); $('#scrim').classList.add('on'); $('#drawer').setAttribute('aria-hidden', 'false'); };
