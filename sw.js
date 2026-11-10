@@ -1,6 +1,6 @@
 /* Service worker — mitahiry ny "shell" an'ny app mba hosokafana offline.
    Ny data (Baiboly, Diksionera...) dia ao IndexedDB; ny sary diksionera ao 'dico-img'. */
-const SHELL = 'shell-v5';
+const SHELL = 'shell-v6';
 const ASSETS = ['./', './index.html', './app.js', './style.css', './firebase-config.js', './manifest.webmanifest', './icon-192.png', './icon-512.png'];
 
 self.addEventListener('install', (e) => {
@@ -30,14 +30,12 @@ self.addEventListener('fetch', (e) => {
   }
   if (u.origin !== location.origin) return; // Firebase API: tsy tafiditra
   if (u.pathname.includes('/free/')) return;  // data Baiboly lehibe: ao IndexedDB, tsy ao cache shell
+  // Network aloha (mba hiseho avy hatrany ny fanovana), cache ho an'ny offline
   e.respondWith(
-    caches.match(e.request, { ignoreSearch: true }).then((hit) => {
-      const net = fetch(e.request).then((res) => {
-        if (res.ok) caches.open(SHELL).then((c) => c.put(e.request, res.clone()));
-        return res;
-      }).catch(() => hit);
-      return hit || net; // cache aloha, avy eo manavao ao ambadika
-    })
+    fetch(e.request, { cache: 'no-cache' }).then((res) => {
+      if (res.ok) { const cp = res.clone(); caches.open(SHELL).then((c) => c.put(e.request, cp)); }
+      return res;
+    }).catch(() => caches.match(e.request, { ignoreSearch: true }))
   );
 });
 
