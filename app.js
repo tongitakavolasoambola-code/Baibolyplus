@@ -36,13 +36,23 @@ const IC = {
   close: ic('<path d="M6 6l12 12M18 6L6 18"/>'),
   key: ic('<circle cx="8" cy="15" r="4"/><path d="M11 12l9-9M16 7l3 3"/>'),
 };
-const THEMES = [['brown', 'Marron noble', '#6b3a22'], ['dark', 'Maizina', '#1a1614'], ['coral', 'Corail', '#f2705f'], ['orange', 'Orange', '#ee8419'], ['palm', 'Vert paume', '#2f7a45'], ['royal', 'Bleu royal', '#2a43b8']];
-const BG = { brown: '#f4e4d8', dark: '#14110f', coral: '#fdeae4', orange: '#fff0dd', palm: '#e8efe0', royal: '#e8edf8' };
-function setTheme(t) {
-  document.documentElement.dataset.theme = t; try { localStorage.setItem('theme', t); } catch {}
-  $('#tc').content = BG[t]; renderDrawer();
+const THEMES = [['red', 'Mena', '#d32f2f'], ['sky', 'Manga', '#1e88e5'], ['brown', 'Marron noble', '#6b3a22'], ['coral', 'Corail', '#f2705f'], ['orange', 'Orange', '#ee8419'], ['palm', 'Vert paume', '#2f7a45'], ['royal', 'Bleu royal', '#2a43b8']];
+const MODES = [['auto', 'Auto'], ['light', 'Mazava'], ['dark', 'Maizina']];
+const lsGet = (k) => { try { return localStorage.getItem(k); } catch { return null; } };
+const lsSet = (k, v) => { try { localStorage.setItem(k, v); } catch {} };
+const curTheme = () => (THEMES.some((x) => x[0] === lsGet('theme')) ? lsGet('theme') : 'red');
+const curMode = () => (['auto', 'light', 'dark'].includes(lsGet('mode')) ? lsGet('mode') : 'auto');
+// Apetraka ny couleur + mode; ny status bar sy nav bar an'ny finday manaraka ny couleur an'ny header
+function applyLook() {
+  const m = curMode(), dark = m === 'dark' || (m === 'auto' && matchMedia('(prefers-color-scheme: dark)').matches);
+  const h = document.documentElement; h.dataset.theme = curTheme(); h.dataset.mode = dark ? 'dark' : 'light';
+  const rgb = (getComputedStyle(h).getPropertyValue('--navrgb') || '').split(',').map((x) => (+x).toString(16).padStart(2, '0'));
+  const c = rgb.length === 3 ? '#' + rgb.join('') : '#b01c26';
+  const tc = $('#tc'); if (tc) tc.content = c;
 }
-const curTheme = () => document.documentElement.dataset.theme || 'brown';
+function setTheme(t) { lsSet('theme', t); applyLook(); renderDrawer(); }
+function setMode(m) { lsSet('mode', m); applyLook(); renderDrawer(); }
+try { matchMedia('(prefers-color-scheme: dark)').addEventListener('change', applyLook); } catch {}
 const NAV = [['home', 'Fandraisana', 'home'], ['bible', 'Baiboly', 'book'], ['konk', 'Konkordansa', 'search'], ['dico', 'Diksionera', 'dict'], ['about', 'Momba', 'info']];
 function renderChrome() {
   $('#back').innerHTML = IC.back; $('#syncBtn').innerHTML = IC.sync; $('#menuBtn').innerHTML = IC.menu;
@@ -57,9 +67,11 @@ function renderDrawer() {
     ${NAV.map(([t, l, i]) => `<button class="item ${S.tab === t ? 'on' : ''}" data-t="${t}">${IC[i]}<span>${l}</span></button>`).join('')}
     <h4>Endrika (couleur)</h4>
     <div class="swatches">${THEMES.map(([k, n, c]) => `<button class="sw ${curTheme() === k ? 'on' : ''}" data-theme="${k}" style="background:${c}" title="${n}" aria-label="${n}"></button>`).join('')}</div>
+    <h4>Mode</h4>
+    <div class="modes">${MODES.map(([k, n]) => `<button data-mode="${k}" class="${curMode() === k ? 'on' : ''}">${n}</button>`).join('')}</div>
     <div class="sp"></div>
     <button class="item" id="dsync">${IC.sync}<span>Hanavao izao</span></button>
-    <div class="foot">${esc(THEMES.find((x) => x[0] === curTheme())[1])}</div>`;
+    <div class="foot">${esc(THEMES.find((x) => x[0] === curTheme())[1])} · ${esc(MODES.find((x) => x[0] === curMode())[1])}</div>`;
 }
 const openDrawer = () => { $('#drawer').classList.add('on'); $('#scrim').classList.add('on'); $('#drawer').setAttribute('aria-hidden', 'false'); };
 const closeDrawer = () => { $('#drawer').classList.remove('on'); $('#scrim').classList.remove('on'); $('#drawer').setAttribute('aria-hidden', 'true'); };
@@ -67,6 +79,7 @@ document.addEventListener('click', (e) => {
   const t = e.target.closest('[data-t]');
   if (t && (t.closest('#tabs') || t.closest('#drawer') || t.closest('.cats'))) { S.tab = t.dataset.t; S.stack = []; closeDrawer(); route(); return; }
   const th = e.target.closest('.sw'); if (th) return setTheme(th.dataset.theme);
+  const md = e.target.closest('[data-mode]'); if (md && md.closest('#drawer')) return setMode(md.dataset.mode);
   if (e.target.closest('#menuBtn')) return openDrawer();
   if (e.target.closest('#dx') || e.target.id === 'scrim') return closeDrawer();
   if (e.target.closest('#dsync')) { closeDrawer(); sync(true); }
@@ -247,26 +260,29 @@ const cur = () => S.stack[S.stack.length - 1];
 
 /* ================= Activation ================= */
 async function lockScreen() {
-  setTitle('Activation');
+  setTitle('Tonga soa');
   const P = window.PAY_INFO || {};
   const req = await kvGet('reqSent');
   const old = { n: $('#rn')?.value, p: $('#rp')?.value, r: $('#rr')?.value };   // mitazona ny efa nosoratana raha averina soratana ny pejy
   const code = S.act?.uid ? S.act.uid.slice(0, 8).toUpperCase() : '…';
+  const num = P.mvola || '034 09 982 63';
   view.innerHTML = `
-  <div class="card">
-    <p><b>Mila activation</b> ny <b>Konkordansa</b> (teny sy hevitra) ary ny <b>Diksionera</b>. Malalaka foana ny Baiboly.</p>
-    <ol>
-      <li>Alefaso amin'ny MVola ny <b>${esc(P.amount)}</b> any amin'ny <b>${esc(P.mvola)}</b> (${esc(P.name)}).</li>
-      <li>Fenoy etsy ambany ny anaranao, ny laharana nandefasanao ary ny <i>référence</i> MVola.</li>
-      <li>Ny <b>Admin</b> no mijery ny fandoavana ary mampiasa ny activation <b>amin'ny tanana</b> (tsy automatique). Rehefa vita ny fanamarinana, tsindrio ny <b>Hamarino ny activation</b>.</li>
-    </ol>
-    <p class="mut">Kaody finday: <b id="uid" style="word-break:break-all;user-select:all">${esc(S.act?.uid || '…')}</b> <button class="chip" id="cp">Adikao</button><br>Mifamatotra amin'ity finday ity ny activation. Azonao alefa amin'ny Admin ny kaody raha tsy mandeha ny fangatahana.</p>
+  <div class="card welcome">
+    <h3>Faly miarahaba anao tonga soa eto amin'ny Baiboly+ <small class="mut">[dikisionera &amp; konkordansa]</small></h3>
+    <p>Maimaimpoana izy ity saingy raha misy mba fahafoizanao ho entina mapiroborobo ny fanitarana ambaidain'ny asan'Andriamanitra ataon'ny mpamokatra dia alefaso amin'ny:</p>
+    <div class="numrow"><b id="mv">${esc(num)}</b><button class="btn" id="cpn">Adikao</button></div>
+    <p>Eo ambany ny anarana:</p>
+    <p class="nm">${esc(P.name || 'Tongitakavolasoa Bernard')}</p>
+    <p>Adikao eo ambany ny <b>ref</b> sy ny <b>num</b> nandefa azy.</p>
+    <p><b>Izay alefanao na 100Ar</b> dia activé foana ny Diksionera sy ny Konkordansa.</p>
+    <p class="mut">Kaody finday: <b id="uid" style="word-break:break-all;user-select:all">${esc(S.act?.uid || '…')}</b> <button class="chip" id="cp">Adikao</button></p>
     <label class="field"><span>Anarana</span><input id="rn" value="${esc(old.n ?? req?.name ?? '')}" autocomplete="name"></label>
-    <label class="field"><span>Laharana MVola nandefa</span><input id="rp" inputmode="tel" value="${esc(old.p ?? req?.phone ?? '')}"></label>
-    <label class="field"><span>Référence MVola</span><input id="rr" value="${esc(old.r ?? req?.ref ?? '')}"></label>
+    <label class="field"><span>Num nandefa (MVola)</span><input id="rp" inputmode="tel" value="${esc(old.p ?? req?.phone ?? '')}"></label>
+    <label class="field"><span>Ref (référence MVola)</span><input id="rr" value="${esc(old.r ?? req?.ref ?? '')}"></label>
     <p><button class="btn" id="send">Alefa ny fangatahana</button> <button class="btn alt" id="chk">Hamarino ny activation</button></p>
-    <p class="mut" id="st">${req ? 'Fangatahana nalefa ' + new Date(req.ts).toLocaleString('fr') + '. Miandry fanamarinana.' : ''}</p>
+    <p class="mut" id="st">${req ? 'Fangatahana nalefa ' + new Date(req.ts).toLocaleString('fr') + '. Miandry fanamarinana avy amin\'ny Admin.' : ''}</p>
   </div>`;
+  $('#cpn').onclick = async () => { try { await navigator.clipboard.writeText(num.replace(/\s/g, '')); toast('Voadika ny laharana'); } catch { toast('Tsindrio ny laharana dia adikao'); } };
   if (!S.act?.uid && navigator.onLine) fb().then((c) => { S.act = { ...(S.act || {}), uid: c.uid }; const u = $('#uid'); if (u) u.textContent = c.uid; }).catch(() => {});
   $('#cp').onclick = async () => { try { await navigator.clipboard.writeText(S.act?.uid || ''); toast('Voadika'); } catch { toast('Tsindrio ny kaody dia adikao'); } };
   $('#send').onclick = async () => {
@@ -477,7 +493,7 @@ async function vAbout() {
 /* ================= Boot ================= */
 (async () => {
   if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(() => {});
-  renderChrome();
+  applyLook(); renderChrome();
   S.act = (await kvGet('act')) || null;
   S.notes = (await kvGet('notes')) || [];
   await loadLocal();
